@@ -1,0 +1,1599 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>커피 레시피 북</title>
+  <style>
+    :root {
+      --paper: #fbfaf7;
+      --surface: #ffffff;
+      --ink: #2d3134;
+      --muted: #69737b;
+      --line: #d9dfda;
+      --green: #2f6f5e;
+      --green-soft: #e7f2ee;
+      --blue: #3e7cb1;
+      --blue-soft: #e8f1fa;
+      --clay: #c8643a;
+      --clay-soft: #f7eae4;
+      --gold: #fff3c4;
+      --shadow: 0 16px 40px rgba(45, 49, 52, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      box-sizing: border-box;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Pretendard, "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+    *, *::before, *::after { box-sizing: inherit; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        linear-gradient(90deg, rgba(47, 111, 94, .04) 1px, transparent 1px),
+        linear-gradient(rgba(47, 111, 94, .04) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+    }
+
+    body.locked .app { display: none; }
+    body.viewer .editor,
+    body.viewer #newBtn,
+    body.viewer #duplicateBtn,
+    body.viewer #importBtn {
+      display: none;
+    }
+    body.viewer .app {
+      grid-template-columns: minmax(210px, 280px) minmax(340px, 1fr);
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { border: 0; border-radius: 8px; cursor: pointer; }
+
+    .access-gate {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+    }
+    body:not(.locked) .access-gate { display: none; }
+    .gate-panel {
+      width: min(420px, 100%);
+      padding: 24px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .gate-panel h1 { margin: 0 0 8px; font-size: 1.4rem; }
+    .gate-panel p { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+    .gate-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+    .gate-form input, .code-modal-panel input {
+      width: 100%;
+      min-width: 0;
+      height: 40px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      outline: 0;
+    }
+    .gate-error, .code-error {
+      min-height: 20px;
+      margin-top: 10px;
+      color: var(--clay);
+      font-size: .86rem;
+      font-weight: 800;
+    }
+    .code-modal[hidden] { display: none; }
+    .code-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(45,49,52,.42);
+    }
+    .code-modal-panel {
+      width: min(380px, 100%);
+      padding: 20px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .code-modal-panel h2 { margin: 0 0 8px; font-size: 1.08rem; }
+    .code-modal-panel p { margin: 0 0 12px; color: var(--muted); line-height: 1.45; }
+    .code-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(200px, 250px) minmax(320px, 1fr) minmax(320px, 430px);
+      align-items: start;
+      gap: 14px;
+      width: min(1440px, 100vw);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 14px;
+    }
+
+    .rail, .editor, .card-stage { min-width: 0; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      margin-bottom: 12px;
+    }
+
+    .brand { min-width: 0; }
+    .brand h1 { margin: 0; font-size: 1.35rem; line-height: 1.15; }
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: .83rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .recipe-topbar { align-items: flex-start; }
+    .recipe-topbar .brand h1 { white-space: nowrap; }
+    .action-toolbar {
+      --action-button-size: 36px;
+      --action-gap: 6px;
+      flex: 1;
+      display: grid;
+      gap: var(--action-gap);
+      min-width: 0;
+      justify-items: end;
+    }
+    .toolbar-row {
+      display: flex;
+      gap: var(--action-gap);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+    .toolbar-row.primary-row,
+    .toolbar-row.action-row {
+      width: calc((var(--action-button-size) * 5) + (var(--action-gap) * 4));
+    }
+    .toolbar-row.primary-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+    }
+    .toolbar-row.primary-row .sync-pill,
+    .toolbar-row.primary-row .text-btn {
+      width: 100%;
+      min-width: 0;
+      padding-left: 8px;
+      padding-right: 8px;
+      font-size: .76rem;
+    }
+    .toolbar-row.action-row .icon-btn {
+      width: var(--action-button-size);
+      min-width: var(--action-button-size);
+      padding: 0;
+    }
+
+    .sync-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 0 10px;
+      color: var(--muted);
+      background: rgba(255,255,255,.72);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: .78rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .sync-pill:before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      margin-right: 7px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+    .sync-pill[data-state="online"] { color: var(--green); background: var(--green-soft); border-color: rgba(47,111,94,.28); }
+    .sync-pill[data-state="syncing"] { color: #655830; background: var(--gold); border-color: #e5d99c; }
+    .sync-pill[data-state="error"] { color: var(--clay); background: var(--clay-soft); border-color: rgba(200,100,58,.28); }
+
+    .icon-btn, .text-btn {
+      display: inline-grid;
+      place-items: center;
+      min-width: 36px;
+      min-height: 36px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+    }
+
+    .text-btn.primary { color: #fff; background: var(--green); border-color: var(--green); }
+    .text-btn.warn { color: #fff; background: var(--clay); border-color: var(--clay); }
+    .icon { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+    .search { position: relative; margin-bottom: 12px; }
+    .search input {
+      width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 0 12px 0 38px; background: rgba(255, 255, 255, .84); color: var(--ink); outline: 0;
+    }
+    .search .icon { position: absolute; top: 11px; left: 12px; color: var(--muted); }
+
+    .filter-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .filter-field { display: grid; gap: 5px; min-width: 0; }
+    .filter-field label { color: var(--muted); font-size: .74rem; font-weight: 800; text-align: center; }
+    .filter-row input, .filter-row select, .field input, .field select, .field textarea {
+      width: 100%; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.9); color: var(--ink); outline: 0;
+      min-width: 0;
+    }
+    .filter-row input, .filter-row select { height: 38px; }
+    .filter-row input { padding: 0 10px; }
+    .filter-row select { padding: 0 24px 0 10px; font-weight: 800; text-align: center; text-align-last: center; }
+
+    .recipe-list { display: grid; gap: 8px; max-height: calc(100vh - 176px); overflow: auto; padding-right: 4px; }
+    .recipe-item {
+      width: 100%; padding: 12px; text-align: left; background: rgba(255,255,255,.86);
+      border: 1px solid var(--line); border-left: 4px solid var(--clay); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(45,49,52,.04);
+    }
+    .recipe-item[data-type="ICE"] { border-left-color: var(--blue); }
+    .recipe-item[data-type="HOT&ICE"] { border-left-color: var(--green); }
+    .recipe-item.active { outline: 2px solid rgba(200,100,58,.3); background: var(--clay-soft); }
+    .recipe-item[data-type="ICE"].active { outline-color: rgba(62,124,177,.3); background: var(--blue-soft); }
+    .recipe-item[data-type="HOT&ICE"].active { outline-color: rgba(47,111,94,.3); background: var(--green-soft); }
+    .recipe-item strong { display: block; margin-bottom: 6px; font-size: .95rem; line-height: 1.3; }
+    .recipe-item span { display: block; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+
+    .brew-card {
+      background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 8px;
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .card-head {
+      display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start;
+      padding: 22px; background: linear-gradient(90deg, var(--clay-soft), #fff); border-bottom: 1px solid var(--line);
+    }
+    .brew-card.ice .card-head { background: linear-gradient(90deg, var(--blue-soft), #fff); }
+    .brew-card.both .card-head { background: linear-gradient(90deg, var(--green-soft), #fff); }
+    .recipe-title { margin: 0; font-size: clamp(1.45rem, 2.3vw, 2.15rem); line-height: 1.12; letter-spacing: 0; word-break: keep-all; overflow-wrap: anywhere; }
+    .source { margin: 8px 0 0; color: var(--muted); font-size: .92rem; }
+    .type-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 34px; padding: 0 12px; color: #fff; background: var(--clay); border-radius: 8px; font-weight: 800; }
+    .brew-card.ice .type-pill { background: var(--blue); }
+    .brew-card.both .type-pill { background: var(--green); }
+
+    .metrics { display: grid; grid-template-columns: repeat(6, minmax(86px, 1fr)); border-bottom: 1px solid var(--line); }
+    .metric { display: grid; place-items: center; min-height: 74px; padding: 12px 14px; border-right: 1px solid var(--line); background: rgba(255,255,255,.78); text-align: center; }
+    .metric:last-child { border-right: 0; }
+    .metric b { display: block; margin-bottom: 6px; color: var(--muted); font-size: .75rem; font-weight: 700; }
+    .metric span { display: block; font-size: 1.05rem; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+
+    .card-body { display: grid; grid-template-columns: minmax(260px, 1.15fr) minmax(230px, .85fr); gap: 0; }
+    .timeline { padding: 20px 22px 22px; border-right: 1px solid var(--line); }
+    .side-note { padding: 20px 22px 22px; background: rgba(248,250,247,.78); }
+    .section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--muted); font-size: .86rem; font-weight: 800; text-transform: uppercase; }
+    .section-title:before { content: ""; width: 8px; height: 18px; border-radius: 5px; background: var(--clay); }
+    .brew-card.ice .section-title:before { background: var(--blue); }
+    .brew-card.both .section-title:before { background: var(--green); }
+
+    .step-list { display: grid; gap: 10px; }
+    .step { display: grid; grid-template-columns: 58px 70px minmax(120px, 1fr) 78px; gap: 8px; align-items: stretch; }
+    .step-time { display: grid; place-items: center; min-height: 44px; border-radius: 8px; background: var(--clay-soft); color: var(--clay); font-weight: 900; font-variant-numeric: tabular-nums; }
+    .brew-card.ice .step-time { color: var(--blue); background: var(--blue-soft); }
+    .brew-card.both .step-time { color: var(--green); background: var(--green-soft); }
+    .step-text { min-height: 44px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .step-amount, .step-total { display: grid; place-items: center; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .note-block { display: grid; gap: 10px; margin-bottom: 16px; }
+    .note-row { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .note-row b { display: block; margin-bottom: 6px; color: var(--muted); font-size: .76rem; }
+    .note-row span { display: block; line-height: 1.45; overflow-wrap: anywhere; }
+    .grind-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
+    .grind { min-height: 58px; padding: 10px; border-radius: 8px; background: var(--gold); border: 1px solid #e5d99c; }
+    .grind b { display: block; color: #655830; font-size: .72rem; margin-bottom: 4px; }
+    .grind span { display: block; font-weight: 800; overflow-wrap: anywhere; }
+
+    .editor { background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 8px; padding: 14px; box-shadow: 0 10px 30px rgba(45,49,52,.05); }
+    .editor h2 { margin: 0 0 12px; font-size: 1.05rem; }
+    .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; max-height: calc(100vh - 88px); overflow-y: auto; overflow-x: hidden; padding-right: 4px; }
+    .form-section {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      min-width: 0;
+      padding: 12px;
+      background: rgba(255,255,255,.58);
+      border: 1px solid rgba(47,111,94,.12);
+      border-radius: 8px;
+    }
+    .form-section h3 {
+      grid-column: 1 / -1;
+      margin: 0 0 2px;
+      color: var(--green);
+      font-size: .82rem;
+      font-weight: 900;
+    }
+    .field { display: grid; gap: 5px; min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { color: var(--muted); font-size: .76rem; font-weight: 800; }
+    .field input, .field select { height: 38px; padding: 0 10px; }
+    .field textarea { min-height: 72px; resize: vertical; padding: 9px 10px; line-height: 1.45; }
+    .pour-grid { display: grid; grid-template-columns: 56px 58px minmax(200px, 1fr); gap: 8px; align-items: start; }
+    .pour-grid input[name^="pourNote"] { min-width: 0; font-size: 15px; }
+    .pour-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .empty-state { padding: 28px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; background: rgba(255,255,255,.74); }
+    .file-input { display: none; }
+    .mobile-tabs, .mobile-admin-btn { display: none; }
+
+    @media (max-width: 1280px) {
+      .app { grid-template-columns: minmax(210px, 260px) 1fr; }
+      .editor { grid-column: 1 / -1; }
+      .form-grid { max-height: none; }
+    }
+    @media (max-width: 800px) {
+      .app {
+        display: block;
+        grid-template-columns: none;
+        width: min(100%, 520px);
+        min-height: 100vh;
+        padding: 12px 12px calc(92px + env(safe-area-inset-bottom));
+      }
+      body.viewer .app { display: block; grid-template-columns: none; }
+      .rail, .card-stage, .editor { display: none; }
+      body[data-mobile-tab="search"] .rail,
+      body[data-mobile-tab="card"] .card-stage,
+      body.admin[data-mobile-tab="admin"] .editor { display: block; }
+      body.viewer[data-mobile-tab="admin"] .card-stage { display: block; }
+      .topbar { min-height: 40px; }
+      .recipe-topbar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+      }
+      .action-toolbar { --action-button-size: 34px; --action-gap: 5px; }
+      .toolbar-row { gap: var(--action-gap); }
+      .toolbar-row.primary-row .sync-pill,
+      .toolbar-row.primary-row .text-btn {
+        padding-left: 6px;
+        padding-right: 6px;
+        font-size: .72rem;
+      }
+      .topbar .brand p { white-space: normal; }
+      .toolbar { gap: 6px; }
+      .sync-pill { min-height: 34px; }
+      .icon-btn, .text-btn { min-height: 34px; min-width: 34px; }
+      .recipe-list { max-height: calc(100vh - 254px); padding-bottom: 8px; }
+      .card-head, .card-body { grid-template-columns: 1fr; }
+      .timeline { border-right: 0; border-bottom: 1px solid var(--line); }
+      .metrics { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .metric:nth-child(2n) { border-right: 0; }
+      .filter-row { grid-template-columns: 1fr; }
+      .filter-field {
+        grid-template-columns: 58px minmax(0, 1fr);
+        align-items: center;
+      }
+      .filter-field label { text-align: left; }
+      .filter-row select { padding-left: 24px; }
+      .form-grid, .form-section { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 54px 64px 1fr 72px; gap: 6px; }
+      .pour-grid { grid-template-columns: 50px 54px minmax(160px, 1fr); gap: 6px; }
+      .mobile-admin-btn { display: inline-grid; }
+      .mobile-tabs {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 12;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(255, 255, 255, .94);
+        border-top: 1px solid var(--line);
+        box-shadow: 0 -12px 30px rgba(45,49,52,.08);
+        backdrop-filter: blur(14px);
+      }
+      .mobile-tab {
+        display: grid;
+        place-items: center;
+        gap: 4px;
+        min-height: 54px;
+        padding: 6px 4px;
+        color: var(--muted);
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        font-size: .76rem;
+        font-weight: 900;
+      }
+      .mobile-tab .icon { width: 17px; height: 17px; }
+      .mobile-tab.active {
+        color: #fff;
+        background: var(--green);
+        border-color: var(--green);
+        box-shadow: 0 8px 18px rgba(47,111,94,.22);
+      }
+      body.viewer .mobile-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      body.viewer .mobile-tab[data-mobile-tab-button="admin"] { display: none; }
+    }
+    @media print {
+      @page { size: A4 landscape; margin: 8mm; }
+      html, body {
+        width: 100%;
+        min-height: 0;
+        background: #fff;
+        font-size: 10px;
+      }
+      body { overflow: visible; }
+      .access-gate, .code-modal, .mobile-tabs, .rail, .editor, .card-stage > .topbar { display: none !important; }
+      .app {
+        display: block !important;
+        width: 100% !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .card-stage {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+      }
+      .brew-card {
+        width: 100%;
+        zoom: .82;
+        box-shadow: none;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .card-head {
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        padding: 12px 14px;
+      }
+      .recipe-title { font-size: 24px; line-height: 1.08; }
+      .source { margin-top: 5px; font-size: 10px; }
+      .type-pill { height: 26px; min-width: 50px; padding: 0 8px; font-size: 10px; }
+      .metrics { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .metric { min-height: 44px; padding: 6px 8px; }
+      .metric b { margin-bottom: 3px; font-size: 9px; }
+      .metric span { font-size: 12px; }
+      .card-body { grid-template-columns: minmax(0, 1.24fr) minmax(0, .76fr); }
+      .timeline, .side-note { padding: 10px 12px; }
+      .timeline { border-right: 1px solid var(--line); border-bottom: 0; }
+      .section-title { margin-bottom: 6px; font-size: 10px; }
+      .section-title:before { height: 14px; width: 6px; }
+      .step-list { gap: 4px; }
+      .step { grid-template-columns: 44px 54px minmax(100px, 1fr) 54px; gap: 4px; }
+      .step-time, .step-text, .step-amount, .step-total {
+        min-height: 28px;
+        padding: 4px 6px;
+        font-size: 10px;
+        line-height: 1.25;
+      }
+      .note-block { gap: 5px; margin-bottom: 8px; }
+      .note-row { padding: 6px 8px; }
+      .note-row b { margin-bottom: 3px; font-size: 9px; }
+      .note-row span { font-size: 10px; line-height: 1.3; }
+      .grind-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+      .grind { min-height: 38px; padding: 5px 6px; }
+      .grind b { margin-bottom: 2px; font-size: 8px; }
+      .grind span { font-size: 11px; }
+    }
+  </style>
+</head>
+<body class="viewer" data-mobile-tab="search">
+  <section class="access-gate" id="accessGate" aria-label="관리자 코드 확인">
+    <div class="gate-panel">
+      <h1>커피 레시피 북</h1>
+      <p>관리자 코드를 확인하세요.</p>
+      <div class="gate-form">
+        <input id="gateCodeInput" type="password" autocomplete="off" placeholder="관리자 코드">
+        <button class="text-btn primary" id="gateCodeBtn" type="button">열기</button>
+      </div>
+      <div class="gate-error" id="gateError" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <div class="code-modal" id="codeModal" hidden>
+    <div class="code-modal-panel" role="dialog" aria-modal="true" aria-labelledby="codeModalTitle">
+      <h2 id="codeModalTitle">관리자 코드 확인</h2>
+      <p id="codeModalMessage">시트에 반영하려면 관리자 코드를 다시 입력하세요.</p>
+      <input id="actionCodeInput" type="password" autocomplete="off" placeholder="관리자 코드">
+      <div class="code-error" id="actionCodeError" aria-live="polite"></div>
+      <div class="code-modal-actions">
+        <button class="text-btn" id="actionCodeCancel" type="button">취소</button>
+        <button class="text-btn primary" id="actionCodeConfirm" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="app">
+    <aside class="rail" aria-label="레시피 목록">
+      <div class="topbar"><div class="brand"><h1>커피 레시피 북</h1></div></div>
+      <div class="search">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <input id="searchInput" type="search" placeholder="레시피/드리퍼 검색">
+      </div>
+      <div class="filter-row">
+        <div class="filter-field"><label for="dripperFilter">드리퍼</label><select id="dripperFilter" aria-label="드리퍼 필터"><option value="">ALL</option></select></div>
+        <div class="filter-field"><label for="typeFilter">타입</label><select id="typeFilter" aria-label="타입 필터"><option value="">ALL</option><option value="HOT">HOT</option><option value="ICE">ICE</option><option value="HOT&ICE">HOT&ICE</option></select></div>
+        <div class="filter-field"><label for="roastFilter">배전도</label><select id="roastFilter" aria-label="배전도 필터"><option value="">ALL</option><option>약배전</option><option>중배전</option><option>강배전</option></select></div>
+      </div>
+      <div class="recipe-list" id="recipeList"></div>
+    </aside>
+
+    <section class="card-stage">
+      <div class="topbar recipe-topbar">
+        <div class="brand"><h1>레시피</h1></div>
+        <div class="toolbar action-toolbar" aria-label="작업">
+          <div class="toolbar-row primary-row">
+            <span class="sync-pill" id="syncStatus" data-state="offline">로컬 저장됨</span>
+            <button class="text-btn" id="adminCodeBtn" type="button" title="관리자 모드">관리자</button>
+          </div>
+          <div class="toolbar-row action-row">
+            <button class="icon-btn" id="newBtn" type="button" title="새 레시피" aria-label="새 레시피"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></button>
+            <button class="icon-btn" id="duplicateBtn" type="button" title="복사본" aria-label="복사본"><svg class="icon" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"></path></svg></button>
+            <button class="icon-btn" id="printBtn" type="button" title="인쇄" aria-label="인쇄"><svg class="icon" viewBox="0 0 24 24"><path d="M6 9V3h12v6"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v7H6z"></path></svg></button>
+            <button class="icon-btn" id="exportBtn" type="button" title="내보내기" aria-label="내보내기"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg></button>
+            <button class="icon-btn" id="importBtn" type="button" title="가져오기" aria-label="가져오기"><svg class="icon" viewBox="0 0 24 24"><path d="M12 21V9"></path><path d="m7 14 5-5 5 5"></path><path d="M5 3h14"></path></svg></button>
+          </div>
+          <input class="file-input" id="importFile" type="file" accept="application/json">
+        </div>
+      </div>
+      <article class="brew-card" id="brewCard"></article>
+    </section>
+
+    <aside class="editor" aria-label="레시피 편집">
+      <div class="topbar"><h2>레시피 편집</h2><div class="toolbar"><button class="text-btn mobile-admin-btn" id="mobileAdminCodeBtn" type="button">관리자</button><button class="text-btn primary" id="saveBtn">저장</button><button class="text-btn warn" id="deleteBtn">삭제</button></div></div>
+      <form class="form-grid" id="recipeForm">
+        <section class="form-section" aria-labelledby="basicInfoTitle">
+          <h3 id="basicInfoTitle">기본 정보</h3>
+          <div class="field full"><label for="name">레시피 이름</label><input id="name" name="name" required></div>
+          <div class="field"><label for="maker">만든 사람 / 출처</label><input id="maker" name="maker"></div>
+          <div class="field"><label for="dripper">드리퍼</label><input id="dripper" name="dripper" list="dripperList"><datalist id="dripperList"></datalist></div>
+          <div class="field"><label for="type">타입</label><select id="type" name="type"><option>HOT</option><option>ICE</option><option>HOT&ICE</option></select></div>
+          <div class="field"><label for="roastLevel">배전도</label><select id="roastLevel" name="roastLevel"><option>ALL</option><option>약배전</option><option>중배전</option><option>강배전</option></select></div>
+        </section>
+        <section class="form-section" aria-labelledby="brewVariablesTitle">
+          <h3 id="brewVariablesTitle">추출 변수</h3>
+          <div class="field"><label for="servings">인분</label><input id="servings" name="servings"></div>
+          <div class="field"><label for="beans">원두</label><input id="beans" name="beans"></div>
+          <div class="field"><label for="water">총 물</label><input id="water" name="water"></div>
+          <div class="field"><label for="temperature">물 온도</label><input id="temperature" name="temperature"></div>
+        </section>
+        <section class="form-section" aria-labelledby="grinderTitle">
+          <h3 id="grinderTitle">그라인더</h3>
+          <div class="field full"><label for="baseGrinder">그라인더</label><select id="baseGrinder" name="baseGrinder"><option value=""></option><option>코만단테 C40</option><option>1zpresso K-Ultra</option><option>홀츠클로츠 E80</option><option>펠로우 오드1 1세대</option><option>홀츠클로츠 매버릭 2</option><option>말코닉 EK43</option></select></div>
+          <div class="field"><label for="baseGrind">분쇄도</label><input id="baseGrind" name="baseGrind"></div>
+          <div class="field"><label for="micron">분쇄도(μm)</label><input id="micron" name="micron" inputmode="decimal"></div>
+          <div class="field"><label for="c40">코만단테 C40</label><input id="c40" name="c40"></div>
+          <div class="field"><label for="kultra">1zpresso K-Ultra</label><input id="kultra" name="kultra"></div>
+          <div class="field"><label for="e80">홀츠클로츠 E80</label><input id="e80" name="e80"></div>
+          <div class="field"><label for="ode">펠로우 오드1 1세대</label><input id="ode" name="ode"></div>
+          <div class="field"><label for="maverick2">홀츠클로츠 매버릭 2</label><input id="maverick2" name="maverick2"></div>
+          <div class="field"><label for="ek43">말코닉 EK43</label><input id="ek43" name="ek43"></div>
+        </section>
+        <section class="form-section" aria-labelledby="pourTimelineTitle">
+          <h3 id="pourTimelineTitle">푸어 타임라인</h3>
+          <div class="field full"><label>푸어 타임라인</label><div class="pour-grid" id="pourFields"></div><div class="pour-actions"><button class="text-btn" type="button" id="addPourBtn">행 추가</button></div></div>
+        </section>
+        <section class="form-section" aria-labelledby="memoTitle">
+          <h3 id="memoTitle">메모</h3>
+          <div class="field full"><label for="tools">도구</label><textarea id="tools" name="tools"></textarea></div>
+          <div class="field full"><label for="taste">메모</label><textarea id="taste" name="taste"></textarea></div>
+        </section>
+      </form>
+    </aside>
+  </main>
+
+  <nav class="mobile-tabs" aria-label="모바일 화면 전환">
+    <button class="mobile-tab active" type="button" data-mobile-tab-button="search" aria-pressed="true">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+      <span>목록</span>
+    </button>
+    <button class="mobile-tab" type="button" data-mobile-tab-button="card" aria-pressed="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9h8"></path><path d="M8 13h5"></path></svg>
+      <span>레시피</span>
+    </button>
+    <button class="mobile-tab" type="button" data-mobile-tab-button="admin" aria-pressed="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+      <span>편집</span>
+    </button>
+  </nav>
+
+  <script>
+    var STORAGE_KEY = "coffee.recipe.book.v2";
+    var GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwAw0fW72eEadm0x569n_Ct9OkRb8BM1tiqBn91oSnfKwLtMjeJU6RuS-ih05s4pUwf/exec";
+    var syncState = { refreshing: false, saving: false };
+    var adminCode = "";
+    var isAdmin = false;
+    var actionCodeResolve = null;
+
+    var recipes = loadRecipes();
+    var selectedId = recipes[0] ? recipes[0].id : null;
+    var els = {};
+
+    function id() {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+      return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+    }
+    function loadRecipes() {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      try {
+        var parsed = JSON.parse(raw);
+        return Array.isArray(parsed) && parsed.length ? sortRecipesByName(parsed.map(normalizeRemoteRecipe)) : [];
+      } catch (error) { return []; }
+    }
+    function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes)); }
+    function scriptUrl() { return String(GOOGLE_SCRIPT_URL || "").trim(); }
+    function localPreviewMode() { return window.location.protocol === "file:"; }
+    function googleSyncEnabled() { return !localPreviewMode() && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(scriptUrl()); }
+    function normalizeAdminCode(value) {
+      var koreanKeyMap = { "ㅊ": "c", "ㄹ": "f" };
+      return String(value || "")
+        .trim()
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(char) {
+          return String.fromCharCode(char.charCodeAt(0) - 65248);
+        })
+        .replace(/[ㅊㄹ]/g, function(char) {
+          return koreanKeyMap[char] || char;
+        })
+        .toLowerCase();
+    }
+    function currentAdminCode() { return normalizeAdminCode(adminCode); }
+    function setAdminCode(code) { adminCode = normalizeAdminCode(code); }
+    function showLocked(message) {
+      document.body.classList.add("locked");
+      if (els.gateError) els.gateError.textContent = message || "";
+      if (els.gateCodeInput) window.setTimeout(function() { els.gateCodeInput.focus(); }, 0);
+    }
+    function showUnlocked() {
+      document.body.classList.remove("locked");
+      if (els.gateError) els.gateError.textContent = "";
+    }
+    function handleInvalidAdminCode() {
+      setAdminCode("");
+      setSyncStatus("관리자 코드 확인 필요", "error");
+      setAdminMode(false);
+    }
+    function setSyncStatus(text, state) {
+      if (!els.syncStatus) return;
+      var shortText = {
+        "관리자 코드 확인 필요": "코드 확인",
+        "관리자 모드 필요": "권한 필요",
+        "관리자 확인 중": "권한 확인",
+        "관리자 확인 실패": "확인 실패",
+        "관리자 모드": "관리자 ON",
+        "로컬 점검 모드": "점검 모드",
+        "로컬 저장됨": "로컬 저장",
+        "시트 읽는 중": "읽는 중",
+        "시트에서 불러옴": "시트 불러옴",
+        "연결 확인 필요": "연결 확인",
+        "시트 저장 중": "저장 중",
+        "시트에 저장됨": "저장됨",
+        "저장 확인 필요": "저장 확인",
+        "로컬 삭제됨": "로컬 삭제",
+        "시트 삭제 중": "삭제 중",
+        "시트에서 삭제됨": "삭제됨",
+        "삭제 확인 필요": "삭제 확인",
+        "시트 전체 저장 중": "전체 저장",
+        "시트에 반영됨": "반영됨",
+        "전체 저장 확인 필요": "전체 확인",
+        "시트 연결 중": "연결 중"
+      }[text] || text;
+      els.syncStatus.textContent = shortText;
+      els.syncStatus.dataset.state = state || "";
+    }
+    function setAdminMode(enabled) {
+      isAdmin = !!enabled;
+      document.body.classList.toggle("admin", isAdmin);
+      document.body.classList.toggle("viewer", !isAdmin);
+      if (els.adminCodeBtn) {
+        els.adminCodeBtn.textContent = isAdmin ? "관리자 ON" : "관리자";
+        els.adminCodeBtn.title = isAdmin ? "관리자 모드 끄기" : "관리자 모드";
+      }
+      if (els.mobileAdminCodeBtn) {
+        els.mobileAdminCodeBtn.textContent = isAdmin ? "관리자 ON" : "관리자";
+        els.mobileAdminCodeBtn.title = isAdmin ? "관리자 모드 끄기" : "관리자 모드";
+      }
+      [els.newBtn, els.duplicateBtn, els.importBtn, els.saveBtn, els.deleteBtn, els.addPourBtn].forEach(function(button) {
+        if (button) button.disabled = !isAdmin;
+      });
+      if (els.form) {
+        Array.from(els.form.elements).forEach(function(field) { field.disabled = !isAdmin; });
+      }
+      if (!isAdmin && document.body.dataset.mobileTab === "admin") {
+        setMobileTab("card");
+      } else {
+        setMobileTab(document.body.dataset.mobileTab);
+      }
+    }
+    function requireAdminMode() {
+      if (isAdmin && (!googleSyncEnabled() || currentAdminCode())) return true;
+      setSyncStatus("관리자 모드 필요", "error");
+      return false;
+    }
+    async function unlockAdminMode() {
+      if (isAdmin) {
+        setAdminCode("");
+        setAdminMode(false);
+        setSyncStatus("보기 모드", "online");
+        return;
+      }
+      if (!googleSyncEnabled()) {
+        setAdminMode(true);
+        setSyncStatus(localPreviewMode() ? "로컬 점검 모드" : "로컬 저장", "offline");
+        return;
+      }
+      var code = await askForActionCode("관리자 모드");
+      if (!code) return;
+      setSyncStatus("관리자 확인 중", "syncing");
+      try {
+        if (!await checkAdminCode(code)) {
+          setSyncStatus("관리자 코드 확인 필요", "error");
+          return;
+        }
+        setAdminCode(code);
+        setAdminMode(true);
+        setSyncStatus("관리자 모드", "online");
+      } catch (error) {
+        setSyncStatus("관리자 확인 실패", "error");
+      }
+    }
+    async function submitGateCode() {
+      if (!els.gateCodeInput) return;
+      var code = normalizeAdminCode(els.gateCodeInput.value);
+      if (!code) {
+        showLocked("관리자 코드를 입력하세요.");
+        return;
+      }
+      setAdminCode(code);
+      if (els.gateError) els.gateError.textContent = "확인 중...";
+      await refreshFromSheet({ force: true, adminCode: code, opening: true });
+    }
+    function askForActionCode(actionName) {
+      if (!googleSyncEnabled()) return Promise.resolve("");
+      return new Promise(function(resolve) {
+        actionCodeResolve = resolve;
+        if (els.actionCodeTitle) els.actionCodeTitle.textContent = actionName === "관리자 모드" ? "관리자 코드 확인" : actionName + " 코드 확인";
+        if (els.actionCodeMessage) els.actionCodeMessage.textContent = actionName === "관리자 모드" ? "수정 권한을 열려면 관리자 코드를 입력하세요." : "시트에 " + actionName + "하려면 관리자 코드를 입력하세요.";
+        if (els.actionCodeError) els.actionCodeError.textContent = "";
+        if (els.actionCodeInput) els.actionCodeInput.value = "";
+        if (els.codeModal) els.codeModal.hidden = false;
+        if (els.actionCodeInput) window.setTimeout(function() { els.actionCodeInput.focus(); }, 0);
+      });
+    }
+    function closeActionCodeModal(value) {
+      if (els.codeModal) els.codeModal.hidden = true;
+      var resolve = actionCodeResolve;
+      actionCodeResolve = null;
+      if (resolve) resolve(value || "");
+    }
+    function confirmActionCode() {
+      var code = els.actionCodeInput ? normalizeAdminCode(els.actionCodeInput.value) : "";
+      if (!code) {
+        if (els.actionCodeError) els.actionCodeError.textContent = "관리자 코드를 입력하세요.";
+        return;
+      }
+      closeActionCodeModal(code);
+    }
+    function requestSheet(params, code) {
+      return new Promise(function(resolve, reject) {
+        if (!googleSyncEnabled()) { reject(new Error("Google Apps Script URL이 비어 있습니다.")); return; }
+        var callbackName = "__coffeeRecipeCallback" + Date.now() + Math.random().toString(16).slice(2);
+        var query = new URLSearchParams(params || {});
+        var requestCode = normalizeAdminCode(code == null ? currentAdminCode() : code);
+        if (requestCode) {
+          query.set("adminCode", requestCode);
+        }
+        query.set("callback", callbackName);
+        query.set("_", Date.now());
+        var script = document.createElement("script");
+        var timer = window.setTimeout(function() {
+          cleanup();
+          reject(new Error("구글시트 응답 시간이 초과되었습니다."));
+        }, 12000);
+        function cleanup() {
+          window.clearTimeout(timer);
+          delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+        window[callbackName] = function(payload) {
+          cleanup();
+          resolve(payload || {});
+        };
+        script.onerror = function() {
+          cleanup();
+          reject(new Error("구글시트를 읽지 못했습니다."));
+        };
+        script.src = scriptUrl() + "?" + query.toString();
+        document.head.appendChild(script);
+      });
+    }
+    async function checkAdminCode(code) {
+      var payload = await requestSheet({ action: "check" }, code);
+      if (!payload || !payload.ok) {
+        if (payload && payload.error === "INVALID_ADMIN_CODE") return false;
+        throw new Error(payload && payload.error ? payload.error : "관리자 코드를 확인하지 못했습니다.");
+      }
+      return true;
+    }
+    function compareRecipeName(a, b) {
+      return String((a && a.name) || "").localeCompare(String((b && b.name) || ""), "ko-KR", { numeric: true, sensitivity: "base" });
+    }
+    function sortRecipesByName(list) {
+      return list.slice().sort(compareRecipeName);
+    }
+    function normalizeRoastLevel(value) {
+      var text = String(value || "").trim();
+      if (!text || /^all$/i.test(text)) return "ALL";
+      if (text.includes("약")) return "약배전";
+      if (text.includes("강")) return "강배전";
+      if (text.includes("중")) return "중배전";
+      return "ALL";
+    }
+    function normalizeRemoteRecipe(recipe) {
+      recipe = Object.assign({}, recipe || {});
+      recipe.id = recipe.id || id();
+      recipe.micron = recipe.micron || "";
+      recipe.maverick2 = recipe.maverick2 || "";
+      recipe.ek43 = recipe.ek43 || "";
+      recipe.dripper = recipe.dripper || "ALL";
+      recipe.roastLevel = normalizeRoastLevel(recipe.roastLevel);
+      recipe.servings = normalizeServings(recipe.servings);
+      if (typeof recipe.pours === "string") {
+        try { recipe.pours = JSON.parse(recipe.pours); }
+        catch (error) { recipe.pours = []; }
+      }
+      recipe.pours = Array.isArray(recipe.pours) ? recipe.pours : [];
+      if (looksLikeSheetDate(recipe.time)) recipe.time = targetTimeFromPours(recipe.pours);
+      if (looksLikeSheetDate(recipe.ratio)) recipe.ratio = ratioFromDose(recipe.beans, recipe.water);
+      return recipe;
+    }
+    function looksLikeSheetDate(value) {
+      return /^1899-\d{2}-\d{2}T/.test(String(value == null ? "" : value).trim());
+    }
+    function replaceRecipesFromRemote(remoteRecipes) {
+      var previousId = selectedId;
+      recipes = sortRecipesByName(remoteRecipes.map(normalizeRemoteRecipe));
+      selectedId = recipes.some(function(recipe) { return recipe.id === previousId; }) ? previousId : (recipes[0] ? recipes[0].id : null);
+      persist();
+      render();
+    }
+    async function refreshFromSheet(options) {
+      options = options || {};
+      if (!googleSyncEnabled() || syncState.refreshing || syncState.saving) return;
+      var code = String(options.adminCode == null ? currentAdminCode() : options.adminCode).trim();
+      syncState.refreshing = true;
+      if (!options.silent) setSyncStatus("시트 읽는 중", "syncing");
+      try {
+        var payload = await requestSheet({ action: "list" }, code);
+        if (!payload.ok) {
+          if (payload.error === "INVALID_ADMIN_CODE") {
+            handleInvalidAdminCode();
+            return false;
+          }
+          throw new Error(payload.error || "구글시트 응답 형식이 올바르지 않습니다.");
+        }
+        if (!Array.isArray(payload.recipes)) throw new Error("구글시트 응답 형식이 올바르지 않습니다.");
+        if (code) setAdminCode(code);
+        replaceRecipesFromRemote(payload.recipes);
+        showUnlocked();
+        setSyncStatus("시트에서 불러옴", "online");
+        return true;
+      } catch (error) {
+        setSyncStatus("연결 확인 필요", "error");
+        if (options.opening) showLocked("연결 또는 배포 URL을 확인해주세요.");
+        return false;
+      } finally {
+        syncState.refreshing = false;
+      }
+    }
+    async function saveRecipeToSheet(recipe, code) {
+      if (!recipe) return false;
+      code = String(code == null ? currentAdminCode() : code).trim();
+      if (!googleSyncEnabled()) {
+        persist();
+        setSyncStatus("로컬 저장됨", "offline");
+        return true;
+      }
+      if (!code) {
+        showLocked("관리자 코드를 다시 입력하세요.");
+        return false;
+      }
+      syncState.saving = true;
+      setSyncStatus("시트 저장 중", "syncing");
+      try {
+        var payload = await requestSheet({ action: "save", recipe: JSON.stringify(recipe) }, code);
+        if (!payload.ok) {
+          if (payload.error === "INVALID_ADMIN_CODE") {
+            handleInvalidAdminCode();
+            return false;
+          }
+          throw new Error(payload.error || "저장 응답 형식이 올바르지 않습니다.");
+        }
+        setAdminCode(code);
+        setSyncStatus("시트에 저장됨", "online");
+        return true;
+      } catch (error) {
+        setSyncStatus("저장 확인 필요", "error");
+        return false;
+      } finally {
+        syncState.saving = false;
+      }
+    }
+    function queueRecipeSave(recipe) {
+      if (!recipe) return;
+      setSyncStatus("저장 필요", googleSyncEnabled() ? "syncing" : "offline");
+    }
+    async function deleteRecipeFromSheet(recipeId, code) {
+      if (!recipeId) return false;
+      code = String(code == null ? currentAdminCode() : code).trim();
+      if (!googleSyncEnabled()) {
+        setSyncStatus("로컬 삭제됨", "offline");
+        return true;
+      }
+      if (!code) {
+        showLocked("관리자 코드를 다시 입력하세요.");
+        return false;
+      }
+      syncState.saving = true;
+      setSyncStatus("시트 삭제 중", "syncing");
+      try {
+        var payload = await requestSheet({ action: "delete", id: recipeId }, code);
+        if (!payload.ok) {
+          if (payload.error === "INVALID_ADMIN_CODE") {
+            handleInvalidAdminCode();
+            return false;
+          }
+          throw new Error(payload.error || "삭제 응답 형식이 올바르지 않습니다.");
+        }
+        setAdminCode(code);
+        setSyncStatus("시트에서 삭제됨", "online");
+        return true;
+      } catch (error) {
+        setSyncStatus("삭제 확인 필요", "error");
+        return false;
+      } finally {
+        syncState.saving = false;
+      }
+    }
+    async function replaceSheetRecipes(nextRecipes, code) {
+      code = String(code == null ? currentAdminCode() : code).trim();
+      if (!googleSyncEnabled()) return true;
+      if (!code) {
+        showLocked("관리자 코드를 다시 입력하세요.");
+        return false;
+      }
+      syncState.saving = true;
+      setSyncStatus("시트 전체 저장 중", "syncing");
+      try {
+        var payload = await requestSheet({ action: "replace", recipes: JSON.stringify(nextRecipes || []) }, code);
+        if (!payload.ok) {
+          if (payload.error === "INVALID_ADMIN_CODE") {
+            handleInvalidAdminCode();
+            return false;
+          }
+          throw new Error(payload.error || "전체 저장 응답 형식이 올바르지 않습니다.");
+        }
+        setAdminCode(code);
+        setSyncStatus("시트에 반영됨", "online");
+        return true;
+      } catch (error) {
+        setSyncStatus("전체 저장 확인 필요", "error");
+        return false;
+      } finally {
+        syncState.saving = false;
+      }
+    }
+    function startGoogleSync() {
+      if (!googleSyncEnabled()) {
+        setSyncStatus(localPreviewMode() ? "로컬 점검 모드" : "로컬 저장", "offline");
+        showUnlocked();
+        setAdminMode(true);
+        return;
+      }
+      setAdminMode(false);
+      setSyncStatus("시트 연결 중", "syncing");
+      refreshFromSheet({ force: true });
+    }
+    function setMobileTab(tab) {
+      var availableTabs = isAdmin ? ["search", "card", "admin"] : ["search", "card"];
+      var nextTab = availableTabs.includes(tab) ? tab : "card";
+      document.body.dataset.mobileTab = nextTab;
+      document.querySelectorAll("[data-mobile-tab-button]").forEach(function(button) {
+        var active = button.dataset.mobileTabButton === nextTab;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    }
+    function printRecipeCard() {
+      setMobileTab("card");
+      window.setTimeout(function() { window.print(); }, 0);
+    }
+    function preparePrint() {
+      setMobileTab("card");
+      document.body.classList.add("print-card");
+    }
+    function finishPrint() {
+      document.body.classList.remove("print-card");
+    }
+    function selectedRecipe() { return recipes.find(function(recipe) { return recipe.id === selectedId; }) || recipes[0] || null; }
+    function esc(value) {
+      return String(value == null ? "" : value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+    function compact(value, fallback) {
+      var text = String(value == null ? "" : value).trim();
+      return text || (fallback == null ? "-" : fallback);
+    }
+    function metric(label, value) { return '<div class="metric"><b>' + esc(label) + '</b><span>' + esc(compact(value)) + '</span></div>'; }
+    function grind(label, value) { return '<div class="grind"><b>' + esc(label) + '</b><span>' + esc(compact(value)) + '</span></div>'; }
+    function withUnit(value, unit) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) return "";
+      return /[a-zA-Z가-힣°]/.test(text) ? text : text + unit;
+    }
+    function withMicron(value) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) return "";
+      return /μm|um|micron|마이크론/i.test(text) ? text : text + "μm";
+    }
+    function normalizeServings(value) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) return "";
+      if (text.indexOf("인분") !== -1) return text;
+      return /^\d+([.,]\d+)?$/.test(text) ? text + "인분" : text;
+    }
+    function firstNumber(value) {
+      var match = String(value == null ? "" : value).replace(",", ".").match(/\d+(\.\d+)?/);
+      return match ? Number(match[0]) : null;
+    }
+    function ratioFromDose(beans, water) {
+      var beanAmount = firstNumber(beans);
+      var waterAmount = firstNumber(water);
+      if (!beanAmount || !waterAmount) return "";
+      return "1:" + Math.round(waterAmount / beanAmount);
+    }
+    function targetTimeFromPours(pours) {
+      for (var i = pours.length - 1; i >= 0; i -= 1) {
+        var time = compact(pours[i].time, "");
+        if (time && !time.includes("_") && /\d/.test(time)) return time;
+      }
+      return "";
+    }
+    function normalizePourTimeValue(value) {
+      var text = String(value == null ? "" : value).trim();
+      if (!text) return "";
+      var colonMatch = text.match(/^(\d+)\s*:\s*(\d{1,2})$/);
+      if (colonMatch) return Number(colonMatch[1]) + ":" + String(Number(colonMatch[2])).padStart(2, "0");
+      var digits = text.replace(/[^\d]/g, "");
+      if (!digits || digits !== text) return text;
+      var seconds = Number(digits.slice(-2));
+      var minutes = Number(digits.slice(0, -2) || "0");
+      minutes += Math.floor(seconds / 60);
+      seconds = seconds % 60;
+      return minutes + ":" + String(seconds).padStart(2, "0");
+    }
+    function normalizePourTimeInput(input) {
+      if (!input) return "";
+      var normalized = normalizePourTimeValue(input.value);
+      if (normalized !== input.value) input.value = normalized;
+      return normalized;
+    }
+    function pourAmountFromText(value) {
+      var text = String(value == null ? "" : value).trim().replace(",", ".");
+      if (!text || text.includes("_")) return null;
+      var match = text.match(/\+\s*(\d+(\.\d+)?)/) || text.match(/(\d+(\.\d+)?)\s*g/i) || text.match(/^\s*(\d+(\.\d+)?)\s*$/);
+      return match ? Number(match[1]) : null;
+    }
+    function formatGrams(value) {
+      if (!Number.isFinite(value)) return "";
+      return String(Math.round(value * 10) / 10).replace(/\.0$/, "");
+    }
+    function stripCumulativeText(value) {
+      return String(value == null ? "" : value)
+        .replace(/\s*\/?\s*누적\s*\d+(\.\d+)?\s*g?\s*/gi, "")
+        .trim();
+    }
+    function stripAmountText(value) {
+      return String(value == null ? "" : value)
+        .replace(/\+\s*\d+([.,]\d+)?\s*g?/i, "")
+        .replace(/^\s*\d+([.,]\d+)?\s*g?\s*/i, "")
+        .replace(/^\s*\/\s*/, "")
+        .trim();
+    }
+    function displayPourAmount(value) {
+      var amount = pourAmountFromText(value);
+      return amount == null ? value : formatGrams(amount) + "g";
+    }
+    function splitLegacyPour(step) {
+      var amount = step.amount || "";
+      var note = step.note || "";
+      if (!note && step.text) note = stripAmountText(stripCumulativeText(step.text));
+      return { time: step.time || "", amount: amount, note: note, total: step.total || "", text: step.text || "" };
+    }
+    function normalizePours(pours) {
+      var total = 0;
+      return pours.map(function(step) {
+        step = splitLegacyPour(step);
+        step.time = normalizePourTimeValue(step.time);
+        var amount = pourAmountFromText(step.amount);
+        if (amount == null) return { time: step.time, amount: "", note: step.note, total: "", text: step.note };
+        total += amount;
+        var amountText = formatGrams(amount);
+        var totalText = formatGrams(total) + "g";
+        return { time: step.time, amount: amountText, note: step.note, total: totalText, text: "+" + amountText + "g" + (step.note ? " / " + step.note : "") + " / 누적 " + totalText };
+      });
+    }
+    function readPours(data) {
+      var pours = [];
+      for (var i = 0; i < pourRowCount(); i += 1) pours.push({ time: normalizePourTimeValue(data.get("pourTime" + i) || ""), amount: data.get("pourAmount" + i) || "", note: data.get("pourNote" + i) || "", text: data.get("pourText" + i) || "" });
+      return normalizePours(pours);
+    }
+    function updateAutoFields() {
+      if (!els.form) return;
+      var data = new FormData(els.form);
+      var pours = readPours(data);
+      var autoTime = targetTimeFromPours(pours);
+      var autoRatio = ratioFromDose(data.get("beans"), data.get("water"));
+      if (autoTime && els.form.elements.time) els.form.elements.time.value = autoTime;
+      if (autoRatio && els.form.elements.ratio) els.form.elements.ratio.value = autoRatio;
+    }
+    var GRIND_CONVERSION_TABLE = [
+      { c40: 14, kultra: "4.8-5.2", e80: "22-25" },
+      { c40: 15, kultra: "5.2-5.6", e80: "24-27" },
+      { c40: 16, kultra: "5.6-6.0", e80: "26-29" },
+      { c40: 17, kultra: "6.0-6.3", e80: "28-30" },
+      { c40: 18, kultra: "6.3-6.7", e80: "29-32" },
+      { c40: 19, kultra: "6.6-7.0", e80: "31-33" },
+      { c40: 20, kultra: "6.8-7.2", e80: "32-34" },
+      { c40: 21, kultra: "7.0-7.5", e80: "33-35" },
+      { c40: 22, kultra: "7.2-7.7", e80: "33-36" },
+      { c40: 23, kultra: "7.5-8.0", e80: "34-36" },
+      { c40: 24, kultra: "7.8-8.3", e80: "35-37" },
+      { c40: 25, kultra: "8.0-8.5", e80: "35-38" },
+      { c40: 26, kultra: "8.3-8.8", e80: "36-39" },
+      { c40: 27, kultra: "8.5-9.0", e80: "37-40" },
+      { c40: 28, kultra: "8.8-9.2", e80: "38-41" },
+      { c40: 29, kultra: "9.0-9.5", e80: "39-43" },
+      { c40: 30, kultra: "9.3-9.8", e80: "40-45" },
+      { c40: 31, kultra: "9.5-10.0", e80: "42-47" },
+      { c40: 32, kultra: "9.8-10.3", e80: "44-49" },
+      { c40: 33, kultra: "10.0-10.6", e80: "46-52" },
+      { c40: 34, kultra: "10.3-11.0", e80: "48-55" }
+    ];
+    function formatOdeValue(value) {
+      var rounded = Math.round(value * 10) / 10;
+      return String(rounded).replace(/\.0$/, "");
+    }
+    var MAVERICK2_MICRON_PER_CLICK = 15;
+    function formatMaverick2Value(micron) {
+      var number = Number(micron);
+      if (!Number.isFinite(number) || number <= 0) return "";
+      return String(Math.round(number / MAVERICK2_MICRON_PER_CLICK));
+    }
+    function formatEk43Value(micron) {
+      var number = Number(micron);
+      if (!Number.isFinite(number) || number <= 0) return "";
+      return String(Math.round(number / 10) / 10).replace(/\.0$/, "");
+    }
+    GRIND_CONVERSION_TABLE.forEach(function(row) {
+      row.micron = String(row.c40 * 30);
+      row.ode = formatOdeValue((row.c40 - 5) / 4);
+      row.maverick2 = formatMaverick2Value(row.micron);
+      row.ek43 = formatEk43Value(row.micron);
+    });
+    var GRINDER_LABELS = { c40: "코만단테 C40", kultra: "1zpresso K-Ultra", e80: "홀츠클로츠 E80", ode: "펠로우 오드1 1세대", maverick2: "홀츠클로츠 매버릭 2", ek43: "말코닉 EK43" };
+    var GRIND_FIELDS = ["c40", "kultra", "e80", "ode", "maverick2", "ek43", "micron"];
+
+    function grinderKey(name) {
+      var text = String(name || "").toLowerCase().replace(/\s+/g, "");
+      if (text.includes("c40") || text.includes("comandante") || text.includes("코만단테")) return "c40";
+      if (text.includes("k-ultra") || text.includes("kultra") || text.includes("1zpresso") || text.includes("케울")) return "kultra";
+      if (text.includes("e80") || (text.includes("홀츠클로츠") && !text.includes("매버릭") && !text.includes("maverick"))) return "e80";
+      if (text.includes("ode") || text.includes("오드") || text.includes("fellow")) return "ode";
+      if (text.includes("ek43") || text.includes("말코닉") || text.includes("mahlkonig") || text.includes("mahlkönig")) return "ek43";
+      if (text.includes("maverick") || text.includes("매버릭") || text.includes("홀츠클로츠") || text.includes("holzklotz")) return "maverick2";
+      if (text.includes("micron") || text.includes("μm") || text.includes("um") || text.includes("마이크론")) return "micron";
+      return "";
+    }
+    function numbersFromText(value) {
+      return (String(value == null ? "" : value).replace(/,/g, ".").match(/\d+(\.\d+)?/g) || []).map(Number);
+    }
+    function midpointFromText(value) {
+      var numbers = numbersFromText(value);
+      if (!numbers.length) return null;
+      return numbers.reduce(function(sum, number) { return sum + number; }, 0) / numbers.length;
+    }
+    function rangeParts(value) {
+      var numbers = numbersFromText(value);
+      if (!numbers.length) return null;
+      return { min: Math.min.apply(null, numbers), max: Math.max.apply(null, numbers) };
+    }
+    function rowScore(row, key, value) {
+      var target = midpointFromText(value);
+      var range = key === "c40" ? { min: row.c40, max: row.c40 } : rangeParts(row[key]);
+      if (target == null || !range) return Number.POSITIVE_INFINITY;
+      if (target >= range.min && target <= range.max) return 0;
+      return Math.min(Math.abs(target - range.min), Math.abs(target - range.max));
+    }
+    function conversionFromGrinder(key, value) {
+      if (key === "c40") {
+        var sourceNumber = firstNumber(value);
+        if (sourceNumber == null) return null;
+        var click = Math.round(sourceNumber);
+        return GRIND_CONVERSION_TABLE.find(function(row) { return row.c40 === click; }) || {
+          c40: click,
+          kultra: "",
+          e80: "",
+          micron: String(click * 30),
+          ode: formatOdeValue((click - 5) / 4),
+          maverick2: formatMaverick2Value(click * 30),
+          ek43: formatEk43Value(click * 30)
+        };
+      }
+      var best = null;
+      var bestScore = Number.POSITIVE_INFINITY;
+      GRIND_CONVERSION_TABLE.forEach(function(row) {
+        var score = rowScore(row, key, value);
+        if (score < bestScore) { best = row; bestScore = score; }
+      });
+      return bestScore === Number.POSITIVE_INFINITY ? null : best;
+    }
+    function clearGrindConversion() {
+      GRIND_FIELDS.forEach(function(name) {
+        if (els.form.elements[name]) els.form.elements[name].value = "";
+      });
+      if (els.form.elements.baseGrind) els.form.elements.baseGrind.value = "";
+    }
+    function applyGrindConversion(changedName) {
+      var key = grinderKey(changedName);
+      if (!key) return;
+      var source = els.form.elements[key];
+      var sourceValue = source ? String(source.value || "").trim() : "";
+      if (!sourceValue) {
+        clearGrindConversion();
+        return;
+      }
+      var converted = source ? conversionFromGrinder(key, source.value) : null;
+      if (!converted) return;
+      GRIND_FIELDS.forEach(function(name) {
+        if (name !== key && els.form.elements[name]) els.form.elements[name].value = converted[name] == null ? "" : converted[name];
+      });
+      if (key !== "micron") {
+        if (els.form.elements.baseGrinder) els.form.elements.baseGrinder.value = GRINDER_LABELS[key] || "";
+        if (els.form.elements.baseGrind) els.form.elements.baseGrind.value = source.value;
+      }
+    }
+    function applyBaseGrindConversion() {
+      if (!els.form || !els.form.elements.baseGrinder || !els.form.elements.baseGrind) return;
+      var key = grinderKey(els.form.elements.baseGrinder.value);
+      var source = key && els.form.elements[key];
+      var value = els.form.elements.baseGrind.value;
+      if (!String(value || "").trim()) {
+        clearGrindConversion();
+        return;
+      }
+      if (!source) return;
+      source.value = key === "micron" ? String(value).replace(/μm|um|micron|마이크론/gi, "").trim() : value;
+      applyGrindConversion(key);
+    }
+    function syncBaseGrindFromSelectedGrinder() {
+      if (!els.form || !els.form.elements.baseGrinder || !els.form.elements.baseGrind) return;
+      var key = grinderKey(els.form.elements.baseGrinder.value);
+      var source = key && els.form.elements[key];
+      if (!source) return;
+      if (String(els.form.elements.baseGrind.value || "").trim()) {
+        applyBaseGrindConversion();
+      } else if (source.value) {
+        els.form.elements.baseGrind.value = key === "micron" ? withMicron(source.value) : source.value;
+      }
+    }
+
+    function addPourRow(index, step) {
+      step = splitLegacyPour(step || {});
+      var fields = document.getElementById("pourFields");
+      fields.insertAdjacentHTML("beforeend",
+        '<input name="pourTime' + index + '" inputmode="numeric" aria-label="' + (index + 1) + '번 시간" placeholder="0:00" value="' + esc(step.time || "") + '">' +
+        '<input name="pourAmount' + index + '" aria-label="' + (index + 1) + '번 물용량" placeholder="50" value="' + esc(step.amount || "") + '">' +
+        '<input name="pourNote' + index + '" aria-label="' + (index + 1) + '번 메모" placeholder="" value="' + esc(step.note || "") + '">'
+      );
+      fitPourNoteInputs();
+    }
+    function initPourFields(count) {
+      var total = Math.max(6, count || 6);
+      var html = "";
+      for (var i = 0; i < total; i += 1) {
+        html += '<input name="pourTime' + i + '" inputmode="numeric" aria-label="' + (i + 1) + '번 시간" placeholder="0:00">';
+        html += '<input name="pourAmount' + i + '" aria-label="' + (i + 1) + '번 물용량" placeholder="50">';
+        html += '<input name="pourNote' + i + '" aria-label="' + (i + 1) + '번 메모" placeholder="">';
+      }
+      document.getElementById("pourFields").innerHTML = html;
+      fitPourNoteInputs();
+    }
+    function pourRowCount() { return document.querySelectorAll('#pourFields input[name^="pourTime"]').length; }
+    var pourFitCanvas = document.createElement("canvas");
+    var pourFitContext = pourFitCanvas.getContext("2d");
+    function fitPourNoteInput(input) {
+      if (!input) return;
+      var maxSize = 15;
+      var minSize = 8.5;
+      input.style.fontSize = maxSize + "px";
+      input.title = input.value || "";
+      if (!input.value || !input.clientWidth || !pourFitContext) return;
+      var style = window.getComputedStyle(input);
+      var padding = parseFloat(style.paddingLeft || "0") + parseFloat(style.paddingRight || "0") + 4;
+      var available = Math.max(20, input.clientWidth - padding);
+      pourFitContext.font = style.font;
+      var needed = pourFitContext.measureText(input.value).width;
+      if (needed <= available) return;
+      var nextSize = Math.max(minSize, Math.floor((maxSize * available / needed) * 10) / 10);
+      input.style.fontSize = nextSize + "px";
+    }
+    function fitPourNoteInputs() {
+      document.querySelectorAll('#pourFields input[name^="pourNote"]').forEach(fitPourNoteInput);
+    }
+
+    function renderFilters() {
+      var selected = els.dripperFilter.value;
+      var drippers = Array.from(new Set(recipes.map(function(recipe) { return compact(recipe.dripper, ""); }).filter(Boolean))).sort();
+      els.dripperFilter.innerHTML = '<option value="">ALL</option>' + drippers.map(function(dripper) {
+        return '<option value="' + esc(dripper) + '">' + esc(dripper) + '</option>';
+      }).join("");
+      els.dripperFilter.value = drippers.includes(selected) ? selected : "";
+      if (els.dripperList) {
+        els.dripperList.innerHTML = drippers.map(function(dripper) {
+          return '<option value="' + esc(dripper) + '"></option>';
+        }).join("");
+      }
+    }
+    function normalizeSearchText(value) {
+      return String(value == null ? "" : value).trim().toLowerCase().replace(/\s+/g, "");
+    }
+    function filteredRecipes() {
+      var q = els.search.value.trim().toLowerCase();
+      var compactQuery = normalizeSearchText(q);
+      var dripper = els.dripperFilter.value;
+      var type = els.typeFilter.value;
+      var roast = els.roastFilter.value;
+      return recipes.filter(function(recipe) {
+        var haystack = [recipe.name, recipe.maker, recipe.dripper, recipe.type, recipe.tools, recipe.taste].join(" ").toLowerCase();
+        var compactHaystack = normalizeSearchText(haystack);
+        var recipeType = String(recipe.type || "");
+        var searchMatches = !q || haystack.includes(q) || compactHaystack.includes(compactQuery);
+        var typeMatches = !type || recipeType === type || recipeType === "HOT&ICE";
+        var dripperMatches = !dripper || String(recipe.dripper || "") === dripper;
+        var roastMatches = !roast || normalizeRoastLevel(recipe.roastLevel) === roast;
+        return searchMatches && dripperMatches && typeMatches && roastMatches;
+      });
+    }
+    function renderList() {
+      var items = sortRecipesByName(filteredRecipes());
+      if (!items.length) {
+        els.list.innerHTML = '<div class="empty-state">표시할 레시피가 없습니다.</div>';
+        return;
+      }
+      els.list.innerHTML = items.map(function(recipe) {
+        return '<button class="recipe-item ' + (recipe.id === selectedId ? 'active' : '') + '" data-id="' + esc(recipe.id) + '" data-type="' + esc(recipe.type) + '"><strong>' + esc(recipe.name) + '</strong><span>' + esc(compact(recipe.dripper)) + ' · ' + esc(compact(recipe.type)) + ' · ' + esc(compact(recipe.servings)) + '</span></button>';
+      }).join("");
+    }
+    function renderCard() {
+      var recipe = selectedRecipe();
+      if (!recipe) {
+        els.card.className = "brew-card";
+        els.card.innerHTML = '<div class="empty-state">레시피를 추가하세요.</div>';
+        return;
+      }
+      var pours = (recipe.pours || []).filter(function(step) { return compact(step.time, "") || compact(step.amount, "") || compact(step.note, "") || compact(step.text, ""); });
+      pours = normalizePours(pours);
+      els.card.className = "brew-card " + (recipe.type === "ICE" ? "ice" : recipe.type === "HOT&ICE" ? "both" : "");
+      var steps = pours.length ? pours.map(function(step) {
+        return '<div class="step"><div class="step-time">' + esc(compact(step.time, "-")) + '</div><div class="step-amount">' + esc(compact(displayPourAmount(step.amount), "-")) + '</div><div class="step-text">' + esc(compact(step.note, "-")) + '</div><div class="step-total">' + esc(compact(step.total, "-")) + '</div></div>';
+      }).join("") : '<div class="empty-state">푸어 순서를 입력하세요.</div>';
+      els.card.innerHTML = '<header class="card-head"><div><h2 class="recipe-title">' + esc(recipe.name) + '</h2><p class="source">' + esc(compact(recipe.maker, "출처 미기입")) + ' · ' + esc(compact(recipe.dripper, "드리퍼 미기입")) + ' · ' + esc(compact(recipe.servings, "인분 미기입")) + '</p></div><span class="type-pill">' + esc(compact(recipe.type, "HOT")) + '</span></header>' +
+        '<section class="metrics" aria-label="기본 정보">' + metric("배전도", recipe.roastLevel) + metric("원두", withUnit(recipe.beans, "g")) + metric("총 물", withUnit(recipe.water, "g")) + metric("물 온도", withUnit(recipe.temperature, "°C")) + metric("목표 시간", recipe.time) + metric("비율", recipe.ratio) + '</section>' +
+        '<div class="card-body"><section class="timeline"><h3 class="section-title">Pour Timeline</h3><div class="step-list">' + steps + '</div></section>' +
+        '<section class="side-note"><h3 class="section-title">Grind & Notes</h3><div class="note-block"><div class="note-row"><b>그라인더</b><span>' + esc(compact(recipe.baseGrinder)) + ' · ' + esc(compact(recipe.baseGrind)) + ' · ' + esc(compact(withMicron(recipe.micron))) + '</span></div><div class="note-row"><b>도구</b><span>' + esc(compact(recipe.tools)) + '</span></div><div class="note-row"><b>메모</b><span>' + esc(compact(recipe.taste)) + '</span></div></div><div class="grind-grid">' + grind("코만단테 C40", recipe.c40) + grind("1zpresso K-Ultra", recipe.kultra) + grind("홀츠클로츠 E80", recipe.e80) + grind("펠로우 오드1 1세대", recipe.ode) + grind("홀츠클로츠 매버릭 2", recipe.maverick2) + grind("말코닉 EK43", recipe.ek43) + '</div></section></div>';
+    }
+    function fillForm() {
+      var recipe = selectedRecipe();
+      if (!recipe) return;
+      initPourFields(recipe.pours ? recipe.pours.length : 6);
+      Object.keys(recipe).forEach(function(key) {
+        if (key === "pours" || key === "id") return;
+        if (els.form.elements[key]) els.form.elements[key].value = recipe[key] || "";
+      });
+      for (var i = 0; i < pourRowCount(); i += 1) {
+        var step = recipe.pours && recipe.pours[i] ? splitLegacyPour(recipe.pours[i]) : {};
+        els.form.elements["pourTime" + i].value = step.time || "";
+        els.form.elements["pourAmount" + i].value = step.amount || "";
+        els.form.elements["pourNote" + i].value = step.note || "";
+      }
+      fitPourNoteInputs();
+      updateAutoFields();
+    }
+    function formToRecipe(base) {
+      var data = new FormData(els.form);
+      var pours = readPours(data);
+      var autoTime = targetTimeFromPours(pours);
+      var autoRatio = ratioFromDose(data.get("beans"), data.get("water"));
+      var recipe = Object.assign({}, base, {
+        name: data.get("name") || "새 레시피", maker: data.get("maker") || "", dripper: data.get("dripper") || "ALL", type: data.get("type") || "HOT", roastLevel: normalizeRoastLevel(data.get("roastLevel")), servings: normalizeServings(data.get("servings")), beans: data.get("beans") || "", water: data.get("water") || "", ice: data.get("ice") || "", temperature: data.get("temperature") || "", time: autoTime || data.get("time") || "", ratio: autoRatio || data.get("ratio") || "", baseGrinder: data.get("baseGrinder") || "", baseGrind: data.get("baseGrind") || "", micron: data.get("micron") || "", c40: data.get("c40") || "", kultra: data.get("kultra") || "", e80: data.get("e80") || "", ode: data.get("ode") || "", maverick2: data.get("maverick2") || "", ek43: data.get("ek43") || "", tools: data.get("tools") || "", taste: data.get("taste") || "", pours: pours
+      });
+      return recipe;
+    }
+    async function saveCurrent() {
+      if (!requireAdminMode()) return;
+      var index = recipes.findIndex(function(recipe) { return recipe.id === selectedId; });
+      var recipe = formToRecipe({ id: selectedId || id() });
+      if (!await saveRecipeToSheet(recipe, currentAdminCode())) return;
+      if (index >= 0) recipes[index] = recipe; else recipes.unshift(recipe);
+      recipes = sortRecipesByName(recipes);
+      selectedId = recipe.id; persist(); render();
+    }
+    function addRecipe() {
+      if (!requireAdminMode()) return;
+      var recipe = { id: id(), name: "새 레시피", maker: "", dripper: "ALL", type: "HOT", roastLevel: "ALL", servings: "1인분", beans: "", water: "", ice: "", temperature: "", time: "", ratio: "", baseGrinder: "", baseGrind: "", micron: "", c40: "", kultra: "", e80: "", ode: "", maverick2: "", ek43: "", tools: "", taste: "", pours: Array.from({length: 6}, function() { return {time:"", text:""}; }) };
+      recipes.unshift(recipe); recipes = sortRecipesByName(recipes); selectedId = recipe.id; render(); queueRecipeSave(recipe); document.getElementById("name").focus();
+    }
+    function duplicateRecipe() {
+      if (!requireAdminMode()) return;
+      var current = selectedRecipe(); if (!current) return;
+      var copy = JSON.parse(JSON.stringify(current)); copy.id = id(); copy.name = current.name + " 복사본";
+      recipes.unshift(copy); recipes = sortRecipesByName(recipes); selectedId = copy.id; render(); queueRecipeSave(copy);
+    }
+    async function deleteRecipe() {
+      if (!requireAdminMode()) return;
+      if (!selectedId) return;
+      var deletedId = selectedId;
+      if (!await deleteRecipeFromSheet(deletedId, currentAdminCode())) return;
+      recipes = sortRecipesByName(recipes.filter(function(recipe) { return recipe.id !== selectedId; }));
+      selectedId = recipes[0] ? recipes[0].id : null; persist(); render();
+    }
+    function exportRecipes() {
+      var blob = new Blob([JSON.stringify(recipes, null, 2)], {type:"application/json"});
+      var url = URL.createObjectURL(blob); var link = document.createElement("a");
+      link.href = url; link.download = "coffee-recipes.json"; link.click(); URL.revokeObjectURL(url);
+    }
+    async function importRecipes(file) {
+      if (!requireAdminMode()) return;
+      if (!file) return;
+      var incoming = JSON.parse(await file.text());
+      if (!Array.isArray(incoming)) throw new Error("JSON 배열이 아닙니다.");
+      recipes = sortRecipesByName(incoming.map(function(recipe) { recipe.id = recipe.id || id(); recipe.pours = Array.isArray(recipe.pours) ? recipe.pours : []; return normalizeRemoteRecipe(recipe); }));
+      selectedId = recipes[0] ? recipes[0].id : null; render();
+      if (await replaceSheetRecipes(recipes, currentAdminCode())) persist();
+    }
+    function render() { renderFilters(); renderList(); renderCard(); fillForm(); setAdminMode(isAdmin); }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      initPourFields();
+      els = {
+        list: document.getElementById("recipeList"),
+        card: document.getElementById("brewCard"),
+        form: document.getElementById("recipeForm"),
+        search: document.getElementById("searchInput"),
+        dripperFilter: document.getElementById("dripperFilter"),
+        typeFilter: document.getElementById("typeFilter"),
+        roastFilter: document.getElementById("roastFilter"),
+        saveBtn: document.getElementById("saveBtn"),
+        deleteBtn: document.getElementById("deleteBtn"),
+        newBtn: document.getElementById("newBtn"),
+        duplicateBtn: document.getElementById("duplicateBtn"),
+        printBtn: document.getElementById("printBtn"),
+        exportBtn: document.getElementById("exportBtn"),
+        importBtn: document.getElementById("importBtn"),
+        importFile: document.getElementById("importFile"),
+        addPourBtn: document.getElementById("addPourBtn"),
+        adminCodeBtn: document.getElementById("adminCodeBtn"),
+        mobileAdminCodeBtn: document.getElementById("mobileAdminCodeBtn"),
+        syncStatus: document.getElementById("syncStatus"),
+        gateCodeInput: document.getElementById("gateCodeInput"),
+        gateCodeBtn: document.getElementById("gateCodeBtn"),
+        gateError: document.getElementById("gateError"),
+        codeModal: document.getElementById("codeModal"),
+        actionCodeTitle: document.getElementById("codeModalTitle"),
+        actionCodeMessage: document.getElementById("codeModalMessage"),
+        actionCodeInput: document.getElementById("actionCodeInput"),
+        actionCodeError: document.getElementById("actionCodeError"),
+        actionCodeCancel: document.getElementById("actionCodeCancel"),
+        actionCodeConfirm: document.getElementById("actionCodeConfirm")
+      };
+      els.mobileTabButtons = Array.from(document.querySelectorAll("[data-mobile-tab-button]"));
+      els.list.addEventListener("click", function(event) { var item = event.target.closest(".recipe-item"); if (!item) return; selectedId = item.dataset.id; renderList(); renderCard(); fillForm(); setAdminMode(isAdmin); setMobileTab("card"); });
+      [els.search, els.dripperFilter, els.typeFilter, els.roastFilter].forEach(function(el) { el.addEventListener("input", renderList); el.addEventListener("change", renderList); });
+      els.saveBtn.addEventListener("click", saveCurrent);
+      els.deleteBtn.addEventListener("click", deleteRecipe);
+      els.newBtn.addEventListener("click", addRecipe);
+      els.duplicateBtn.addEventListener("click", duplicateRecipe);
+      els.printBtn.addEventListener("click", printRecipeCard);
+      els.exportBtn.addEventListener("click", exportRecipes);
+      els.importBtn.addEventListener("click", function() { els.importFile.click(); });
+      els.adminCodeBtn.addEventListener("click", function() {
+        unlockAdminMode();
+      });
+      els.mobileAdminCodeBtn.addEventListener("click", function() {
+        unlockAdminMode();
+      });
+      els.mobileTabButtons.forEach(function(button) {
+        button.addEventListener("click", function() {
+          setMobileTab(button.dataset.mobileTabButton);
+        });
+      });
+      els.gateCodeBtn.addEventListener("click", submitGateCode);
+      els.gateCodeInput.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") submitGateCode();
+      });
+      els.actionCodeConfirm.addEventListener("click", confirmActionCode);
+      els.actionCodeCancel.addEventListener("click", function() { closeActionCodeModal(""); });
+      els.actionCodeInput.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") confirmActionCode();
+        if (event.key === "Escape") closeActionCodeModal("");
+      });
+      els.importFile.addEventListener("change", async function(event) { try { await importRecipes(event.target.files[0]); } catch (error) { alert("가져오기에 실패했습니다. " + error.message); } finally { event.target.value = ""; } });
+      els.addPourBtn.addEventListener("click", function() {
+        if (!requireAdminMode()) return;
+        var index = pourRowCount();
+        addPourRow(index, {});
+        var recipeIndex = recipes.findIndex(function(recipe) { return recipe.id === selectedId; });
+        if (recipeIndex >= 0) { updateAutoFields(); recipes[recipeIndex] = formToRecipe({id:selectedId}); queueRecipeSave(recipes[recipeIndex]); renderCard(); }
+      });
+      function handleRecipeFormEdit(event) {
+        if (!isAdmin) return;
+        var index = recipes.findIndex(function(recipe) { return recipe.id === selectedId; });
+        if (index < 0) return;
+        if (event.type === "change" && event.target.name && event.target.name.startsWith("pourTime")) normalizePourTimeInput(event.target);
+        if (event.target.name && event.target.name.startsWith("pourNote")) fitPourNoteInput(event.target);
+        if (event.target.name === "baseGrinder") syncBaseGrindFromSelectedGrinder();
+        if (event.target.name === "baseGrind") applyBaseGrindConversion();
+        if (event.target.name && GRIND_FIELDS.includes(event.target.name)) applyGrindConversion(event.target.name);
+        if (["beans", "water"].includes(event.target.name) || event.target.name.startsWith("pourTime") || event.target.name.startsWith("pourAmount")) updateAutoFields();
+        recipes[index] = formToRecipe({id:selectedId});
+        recipes = sortRecipesByName(recipes);
+        queueRecipeSave(selectedRecipe());
+        renderCard(); renderList();
+      }
+      els.form.addEventListener("input", handleRecipeFormEdit);
+      els.form.addEventListener("change", handleRecipeFormEdit);
+      window.addEventListener("beforeprint", preparePrint);
+      window.addEventListener("afterprint", finishPrint);
+      window.addEventListener("resize", fitPourNoteInputs);
+      setMobileTab(document.body.dataset.mobileTab);
+      render();
+      startGoogleSync();
+    });
+  </script>
+</body>
+</html>
+
+
+
